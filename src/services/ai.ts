@@ -1,10 +1,20 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!
-});
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("OpenAI API key is not configured. Please add OPENAI_API_KEY to your .env file.");
+  }
+
+  return new OpenAI({
+    apiKey: apiKey
+  });
+}
 
 export async function generateMealPlan(prompt: string) {
+  const client = getOpenAIClient();
+
   const response = await client.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [

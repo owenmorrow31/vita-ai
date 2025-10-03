@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/AuthModal";
 import MealPlanCard from "@/components/MealPlanCard";
@@ -55,29 +55,33 @@ export default function Home() {
   const [saveTitle, setSaveTitle] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  const fetchSavedPlans = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch("/api/mealplans", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSavedPlans(data.mealPlans || []);
+      }
+    } catch (error) {
+      console.error('Error fetching saved plans:', error);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       fetchSavedPlans();
     }
-  }, [user]);
-
-  const fetchSavedPlans = async () => {
-    if (!user) return;
-
-    const session = await supabase.auth.getSession();
-    if (!session.data.session) return;
-
-    const res = await fetch("/api/mealplans", {
-      headers: {
-        Authorization: `Bearer ${session.data.session.access_token}`,
-      },
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      setSavedPlans(data.mealPlans || []);
-    }
-  };
+  }, [user, fetchSavedPlans]);
 
   const toggleDietaryRestriction = (restriction: string) => {
     setDietaryRestrictions((prev) =>
@@ -131,14 +135,17 @@ export default function Home() {
     setError("");
 
     try {
-      const session = await supabase.auth.getSession();
-      if (!session.data.session) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError("Session expired. Please sign in again.");
+        return;
+      }
 
       const res = await fetch("/api/mealplans", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.data.session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           title: saveTitle,
@@ -169,18 +176,22 @@ export default function Home() {
   const handleDeletePlan = async (id: string) => {
     if (!user) return;
 
-    const session = await supabase.auth.getSession();
-    if (!session.data.session) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
 
-    const res = await fetch(`/api/mealplans?id=${id}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${session.data.session.access_token}`,
-      },
-    });
+      const res = await fetch(`/api/mealplans?id=${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
 
-    if (res.ok) {
-      await fetchSavedPlans();
+      if (res.ok) {
+        await fetchSavedPlans();
+      }
+    } catch (error) {
+      console.error('Error deleting plan:', error);
     }
   };
 
